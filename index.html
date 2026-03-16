@@ -507,11 +507,10 @@ function calcSalary(row, lastCoins, levels, rankMap, isCurLast7=false, lastMerge
   else                          bonusNote='当月档位低于上月，不发';
 
   // 超档金币兑钻
-  // 统一公式：(当月总流水 + 上月总流水) - 档位门槛
-  const minCoins    = lr ? lr[1] : 0;
-  const pureCoins   = lastMergeCoins > 0 ? (coins - lastMergeCoins) : coins; // 纯当月流水
-  const lastFlowVal = (lastCoins != null && !isNaN(parseFloat(lastCoins))) ? parseFloat(lastCoins) : 0;
-  const overCoins   = Math.max(0, pureCoins + lastFlowVal - minCoins);
+  // 普通主播：只用当月流水 - 档位门槛
+  // 上月末7天合并主播：当月+上月合并流水（coins已包含）- 档位门槛
+  const minCoins   = lr ? lr[1] : 0;
+  const overCoins  = Math.max(0, coins - minCoins);
   const overDiamond = Math.round(overCoins * 2);
 
   return {
