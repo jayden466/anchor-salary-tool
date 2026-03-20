@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>主播薪资计算工具</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap');
+:root {
+  --bg:#0f1117;--surface:#181c27;--surface2:#1e2334;--border:#2a3045;
+  --accent:#4f8ef7;--accent2:#7c5cfc;--success:#34d399;--warning:#fbbf24;
+  --danger:#f87171;--text:#e8eaf0;--text2:#8b92a8;--text3:#555e78;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Noto Sans SC',sans-serif;font-size:14px;min-height:100vh;}
+header{background:linear-gradient(135deg,#141824,#1a2035);border-bottom:1px solid var(--border);padding:20px 32px;display:flex;align-items:center;gap:16px;}
+header .logo{width:38px;height:38px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;}
+header h1{font-size:18px;font-weight:700;letter-spacing:.5px;}
+header p{font-size:12px;color:var(--text2);margin-top:2px;}
+main{max-width:1440px;margin:0 auto;padding:28px 32px;}
+.steps{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px 24px;}
+.card-title{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:16px;}
+.step-num{width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0;}
+.upload-area{border:1.5px dashed var(--border);border-radius:10px;padding:20px;text-align:center;cursor:pointer;transition:all .2s;position:relative;}
+.upload-area:hover{border-color:var(--accent);background:rgba(79,142,247,.05);}
+.upload-area.has-file{border-color:var(--success);background:rgba(52,211,153,.05);}
+.upload-area input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;}
+.upload-icon{font-size:28px;margin-bottom:8px;}
+.upload-label{font-size:13px;color:var(--text2);}
+.upload-label span{color:var(--accent);font-weight:500;}
+.file-name{font-size:12px;color:var(--success);margin-top:6px;font-family:'DM Mono',monospace;}
+.upload-clear{display:none;margin-top:10px;}
+.upload-area.has-file .upload-icon,
+.upload-area.has-file .upload-label{display:none;}
+.upload-area.has-file .upload-clear{display:flex;align-items:center;justify-content:center;gap:10px;}
+.upload-area.has-file input{pointer-events:none;}
+.offer-card{margin-bottom:20px;}
+.offer-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
+.offer-hint{font-size:12px;color:var(--text3);}
+.table-wrap{overflow-x:auto;border-radius:10px;border:1px solid var(--border);max-height:380px;overflow-y:auto;}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+thead th{background:var(--surface2);padding:10px 12px;text-align:center;color:var(--text2);font-weight:600;font-size:11px;letter-spacing:.5px;white-space:nowrap;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:1;}
+tbody tr{border-bottom:1px solid rgba(42,48,69,.6);transition:background .15s;}
+tbody tr:last-child{border-bottom:none;}
+tbody tr:hover{background:rgba(79,142,247,.04);}
+tbody td{padding:6px 8px;text-align:center;color:var(--text);}
+tbody td input{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text);font-size:12px;font-family:'DM Mono',monospace;text-align:center;transition:border-color .2s;width:90px;}
+tbody td input:focus{outline:none;border-color:var(--accent);}
+tbody td input.sm{width:64px;}
+tbody td input.lvl-input{width:72px;color:var(--accent);font-weight:500;}
+.del-btn{background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:3px 7px;border-radius:4px;transition:all .15s;}
+.del-btn:hover{color:var(--danger);background:rgba(248,113,113,.1);}
+.btn{padding:10px 20px;border-radius:10px;border:none;cursor:pointer;font-size:13px;font-weight:600;font-family:'Noto Sans SC',sans-serif;transition:all .2s;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;}
+.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;box-shadow:0 4px 16px rgba(79,142,247,.3);}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(79,142,247,.4);}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none;}
+.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border);}
+.btn-secondary:hover{border-color:var(--accent);color:var(--accent);}
+.btn-success{background:linear-gradient(135deg,#059669,#34d399);color:#fff;box-shadow:0 4px 16px rgba(52,211,153,.3);}
+.btn-success:hover{transform:translateY(-1px);}
+.btn-sm{padding:6px 14px;font-size:12px;}
+.btn-row{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;}
+.msg{padding:12px 16px;border-radius:10px;font-size:13px;margin-bottom:20px;display:none;align-items:center;gap:10px;}
+.msg.show{display:flex;}
+.msg.error{background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.3);color:var(--danger);}
+.msg.success{background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.3);color:var(--success);}
+.msg.info{background:rgba(79,142,247,.12);border:1px solid rgba(79,142,247,.3);color:var(--accent);}
+#result-section{display:none;}
+.stats-row{display:grid;grid-template-columns:repeat(7,1fr);gap:14px;margin-bottom:20px;}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;}
+.stat-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;}
+.stat-value{font-size:22px;font-weight:700;font-family:'DM Mono',monospace;}
+.stat-value.green{color:var(--success);}
+.stat-value.blue{color:var(--accent);}
+.stat-value.purple{color:var(--accent2);}
+.stat-value.yellow{color:var(--warning);}
+.stat-value.cyan{color:#67e8f9;}
+.result-table-wrap{overflow-x:auto;border-radius:12px;border:1px solid var(--border);max-height:500px;overflow-y:auto;}
+.result-table-wrap thead th{background:var(--surface2);padding:10px 12px;}
+.result-table-wrap tbody td{padding:8px 12px;}
+.tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;font-family:'DM Mono',monospace;}
+.tag-ssp{background:rgba(124,92,252,.25);color:#c4b5fd;}
+.tag-ss{background:rgba(124,92,252,.2);color:#a78bfa;}
+.tag-s{background:rgba(79,142,247,.2);color:#93c5fd;}
+.tag-low{background:rgba(251,191,36,.15);color:var(--warning);}
+.tag-fail{background:rgba(248,113,113,.15);color:var(--danger);}
+.spinner{width:15px;height:15px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:none;}
+@keyframes spin{to{transform:rotate(360deg);}}
+::-webkit-scrollbar{width:5px;height:5px;}
+.history-item{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:10px;display:flex;align-items:center;gap:14px;transition:border-color .2s;}
+.history-item:hover{border-color:var(--accent);}
+.history-meta{flex:1;min-width:0;}
+.history-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;}
+.history-sub{font-size:11px;color:var(--text3);display:flex;gap:14px;flex-wrap:wrap;}
+.history-sub span{display:flex;align-items:center;gap:4px;}
+.history-actions{display:flex;gap:8px;flex-shrink:0;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">💰</div>
+  <div><h1>主播薪资计算工具</h1><p>阿语语音房 · 薪资政策 v6</p></div>
+</header>
+<main>
+  <div class="steps">
+    <div class="card">
+      <div class="card-title"><div class="step-num">1</div>上传当月数据</div>
+      <div class="upload-area" id="cur-area">
+        <input type="file" id="cur-file" accept=".xlsx,.xls,.csv">
+        <div class="upload-icon">📊</div>
+        <div class="upload-label">点击或拖拽上传 <span>当月数据 xlsx/csv</span></div>
+        <div class="file-name" id="cur-name"></div>
+        <div class="upload-clear">
+          <span id="cur-name-clear" style="font-size:13px;color:var(--success);font-family:'DM Mono',monospace;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+          <button class="btn btn-secondary btn-sm" onclick="clearUpload('cur')" style="flex-shrink:0">✕ 重新上传</button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title"><div class="step-num">2</div>上传上月数据</div>
+      <div class="upload-area" id="last-area">
+        <input type="file" id="last-file" accept=".xlsx,.xls,.csv">
+        <div class="upload-icon">📋</div>
+        <div class="upload-label">点击或拖拽上传 <span>上月数据 xlsx/csv</span></div>
+        <div class="file-name" id="last-name"></div>
+        <div class="upload-clear">
+          <span id="last-name-clear" style="font-size:13px;color:var(--success);font-family:'DM Mono',monospace;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+          <button class="btn btn-secondary btn-sm" onclick="clearUpload('last')" style="flex-shrink:0">✕ 重新上传</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card offer-card">
+    <div class="card-title"><div class="step-num">3</div>确认 / 修改档位规则（Offer 表）</div>
+    <div class="offer-toolbar">
+      <button class="btn btn-secondary btn-sm" onclick="addLevelRow()">＋ 新增档位</button>
+      <button class="btn btn-secondary btn-sm" onclick="resetOffer()">↺ 恢复默认</button>
+      <label class="btn btn-secondary btn-sm" style="cursor:pointer">📥 导入模版<input type="file" id="offer-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="importOffer(this)"></label>
+      <button class="btn btn-secondary btn-sm" onclick="exportOfferTemplate()">📤 导出模版</button>
+      <span class="offer-hint">直播天数为空 = 无限制 · 档位从高到低排列</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>档位</th><th>最低金币</th><th>主播档位薪资($)</th><th>公会档位薪资($)</th><th>主播单月激励($)</th><th>公会单月激励($)</th><th>直播天数要求</th><th></th></tr></thead>
+        <tbody id="offer-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-primary" id="calc-btn" onclick="calculate()">
+      <div class="spinner" id="spinner"></div><span id="calc-label">⚡ 开始计算</span>
+    </button>
+    <button class="btn btn-secondary" onclick="document.getElementById('result-section').style.display='none'">清除结果</button>
+  </div>
+  <div class="msg" id="msg"></div>
+
+  <div id="result-section">
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-label">处理主播数</div><div class="stat-value blue" id="st-total">0</div></div>
+      <div class="stat-card"><div class="stat-label">有薪资主播</div><div class="stat-value green" id="st-paid">0</div></div>
+      <div class="stat-card"><div class="stat-label">有主播的公会数</div><div class="stat-value cyan" id="st-guilds">0</div></div>
+      <div class="stat-card"><div class="stat-label">主播薪资合计</div><div class="stat-value purple" id="st-anchor">$0</div></div>
+      <div class="stat-card"><div class="stat-label">公会薪资合计</div><div class="stat-value yellow" id="st-guild">$0</div></div>
+      <div class="stat-card"><div class="stat-label">总薪资合计</div><div class="stat-value green" id="st-sum">$0</div></div>
+      <div class="stat-card"><div class="stat-label">超档金币兑钻合计</div><div class="stat-value cyan" id="st-diamond">0</div></div>
+    </div>
+    <div class="card" style="margin-bottom:20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+        <div class="card-title" style="margin-bottom:0"><div class="step-num">✓</div>计算结果</div>
+        <button class="btn btn-success" onclick="downloadExcel()">⬇ 导出 Excel（含公会汇总）</button>
+      </div>
+      <div class="result-table-wrap">
+        <table id="result-table">
+          <thead><tr>
+            <th>主播ID</th><th>主播昵称</th><th>薪资下发UID</th>
+            <th>当月档位</th><th>上月档位</th>
+            <th>主播档位薪资($)</th><th>公会档位薪资($)</th>
+            <th>主播单月激励($)</th><th>公会单月激励($)</th>
+            <th>主播薪资总计($)</th><th>公会薪资总计($)</th>
+            <th>达标情况</th><th>激励说明</th>
+            <th>公会ID</th><th>公会名称</th><th>公会长UID</th>
+          </tr></thead>
+          <tbody id="result-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <!-- 历史记录 -->
+  <div class="card" id="history-section" style="margin-top:8px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+      <div class="card-title" style="margin-bottom:0"><div class="step-num">📁</div>历史计算记录</div>
+      <button class="btn btn-secondary btn-sm" onclick="clearAllHistory()" id="clear-all-btn" style="display:none">🗑 清空全部</button>
+    </div>
+    <div id="history-empty" style="text-align:center;padding:28px;color:var(--text3);font-size:13px">暂无历史记录，计算后自动保存</div>
+    <div id="history-list"></div>
+  </div>
+</main>
+
+<script>
+// ═══════════════════════════════════════════════
+//  默认档位表
+// ═══════════════════════════════════════════════
+const DEFAULT_LEVELS = [
+  ["SSP3",14500000,24200,5200,1300,312,0],
+  ["SSP2",10500000,18200,3800, 900,216,0],
+  ["SSP1", 8300000,14500,3000, 700,168,0],
+  ["SS8",  6500000,11650,2450, 500,120,0],
+  ["SS7",  5200000, 9300,1970, 370, 88,10],
+  ["SS6",  3850000, 6900,1450, 280, 67,10],
+  ["SS5",  2950000, 5300,1100, 240, 57,10],
+  ["SS4",  2050000, 3605, 775, 200, 48,10],
+  ["SS3",  1750000, 3180, 660, 160, 38,10],
+  ["SS2",  1300000, 2435, 520, 110, 26,10],
+  ["SS1",   920000, 1785, 370,  79, 19,10],
+  ["S9+",   780000, 1445, 300,  67, 16,10],
+  ["S8+",   620000, 1085, 240,  60, 14,10],
+  ["S7+",   440000,  780, 170,  38,  9,10],
+  ["S6+",   325000,  578, 130,  28,  6,10],
+  ["S5+",   235000,  432,  96,  20,  4,10],
+  ["S4+",   165000,  315,  68,   0,  0,10],
+  ["S3+",   116000,  222,  50,   0,  0,10],
+  ["S2+",    85000,  160,  36,   0,  0,10],
+  ["S1+",    60000,  120,  30,   0,  0,10],
+  ["A",      45000,   94,  24,   0,  0,10],
+  ["B",      32000,   68,  19,   0,  0,10],
+  ["C+",     25000,   53,  16,   0,  0,14],
+  ["C",      19000,   42,  14,   0,  0,14],
+  ["D",      11000,   26,   9,   0,  0,14],
+  ["E",       6500,   14,   8,   0,  0,14],
+  ["F",       2500,    5,   4,   0,  0,14],
+];
+
+let curData=null, lastData=null, resultRows=[], curRawRows=[];
+
+// 记录原始文件中每列的原始值（用于导出时还原格式）
+// key: colIndex, value: { isDateSerial, isDatetime, fmt }
+let colMeta = {};
+
+// ═══════════════════════════════════════════════
+//  档位表
+// ═══════════════════════════════════════════════
+function renderOfferTable(levels) {
+  document.getElementById('offer-tbody').innerHTML = levels.map((row) => {
+    const [lvl,coins,aSal,gSal,aBonus,gBonus,days] = row;
+    return `<tr>
+      <td><input class="lvl-input" value="${lvl}" placeholder="档位名"></td>
+      <td><input type="number" class="offer-input" value="${coins}" min="0"></td>
+      <td><input type="number" class="offer-input" value="${aSal}" min="0"></td>
+      <td><input type="number" class="offer-input" value="${gSal}" min="0"></td>
+      <td><input type="number" class="offer-input" value="${aBonus}" min="0"></td>
+      <td><input type="number" class="offer-input" value="${gBonus}" min="0"></td>
+      <td><input type="number" class="offer-input sm" value="${days||''}" min="0" placeholder="无限制"></td>
+      <td><button class="del-btn" onclick="this.closest('tr').remove()">✕</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function resetOffer() { renderOfferTable(JSON.parse(JSON.stringify(DEFAULT_LEVELS))); }
+
+function addLevelRow() {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input class="lvl-input" placeholder="档位名"></td>
+    <td><input type="number" class="offer-input" value="0" min="0"></td>
+    <td><input type="number" class="offer-input" value="0" min="0"></td>
+    <td><input type="number" class="offer-input" value="0" min="0"></td>
+    <td><input type="number" class="offer-input" value="0" min="0"></td>
+    <td><input type="number" class="offer-input" value="0" min="0"></td>
+    <td><input type="number" class="offer-input sm" placeholder="无限制" min="0"></td>
+    <td><button class="del-btn" onclick="this.closest('tr').remove()">✕</button></td>`;
+  document.getElementById('offer-tbody').appendChild(tr);
+  document.querySelector('.table-wrap').scrollTop = 99999;
+}
+
+function getLevels() {
+  return Array.from(document.querySelectorAll('#offer-tbody tr')).map(tr => {
+    const inputs = tr.querySelectorAll('input');
+    return [inputs[0].value.trim(),
+      parseFloat(inputs[1].value)||0, parseFloat(inputs[2].value)||0,
+      parseFloat(inputs[3].value)||0, parseFloat(inputs[4].value)||0,
+      parseFloat(inputs[5].value)||0, parseFloat(inputs[6].value)||0];
+  });
+}
+
+function exportOfferTemplate() {
+  const hdr = ['档位','最低金币','主播档位薪资($)','公会档位薪资($)','主播单月激励($)','公会单月激励($)','直播天数要求'];
+  const ws = XLSX.utils.aoa_to_sheet([hdr, ...getLevels()]);
+  ws['!cols'] = [10,14,16,16,16,16,12].map(w=>({wch:w}));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '档位表');
+  XLSX.writeFile(wb, '档位模版.xlsx');
+}
+
+function importOffer(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb   = XLSX.read(e.target.result, {type:'array'});
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, defval:0});
+      const data = rows.slice(1).filter(r => r[0] && String(r[0]).trim());
+      renderOfferTable(data.map(r=>[String(r[0]).trim(),
+        parseFloat(r[1])||0,parseFloat(r[2])||0,parseFloat(r[3])||0,
+        parseFloat(r[4])||0,parseFloat(r[5])||0,parseFloat(r[6])||0]));
+      showMsg(`已导入 ${data.length} 个档位`, 'success');
+    } catch(err) { showMsg('导入失败：'+err.message, 'error'); }
+    input.value = '';
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ═══════════════════════════════════════════════
+//  文件上传
+//  当月数据：用 {raw:true, cellDates:false} 读取，保留原始 serial number
+//  同时用第二次读取获取每列的 number_format
+// ═══════════════════════════════════════════════
+function clearUpload(prefix) {
+  const area  = document.getElementById(prefix+'-area');
+  const input = document.getElementById(prefix+'-file');
+  document.getElementById(prefix+'-name').textContent = '';
+  document.getElementById(prefix+'-name-clear').textContent = '';
+  area.classList.remove('has-file');
+  input.value = '';
+  if (prefix === 'cur')  { curData = null;  curRawRows = []; }
+  if (prefix === 'last') { lastData = null; }
+}
+
+function setupUpload(inputId, areaId, nameId, cb) {
+  document.getElementById(inputId).addEventListener('change', e => {
+    const file = e.target.files[0]; if (!file) return;
+    document.getElementById(nameId).textContent = '✓ ' + file.name;
+    document.getElementById(areaId).classList.add('has-file');
+    const clearNameId = nameId.replace('-name', '-name-clear');
+    const clearEl = document.getElementById(clearNameId);
+    if (clearEl) clearEl.textContent = '✓ ' + file.name;
+    const isCsv = file.name.toLowerCase().endsWith('.csv');
+    const reader = new FileReader();
+    if (isCsv) {
+      reader.onload = ev => {
+        // CSV：用XLSX解析，cellDates:false保持原始值
+        const wb   = XLSX.read(ev.target.result, {type:'string', cellDates:false, raw:false});
+        const ws   = wb.Sheets[wb.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(ws, {defval:null, raw:true});
+        cb(data, ws);
+      };
+      reader.readAsText(file, 'UTF-8');
+    } else {
+      reader.onload = ev => {
+        const wb   = XLSX.read(ev.target.result, {type:'array', cellDates:false, raw:false});
+        const ws   = wb.Sheets[wb.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(ws, {defval:null, raw:true});
+        cb(data, ws);
+      };
+      reader.readAsArrayBuffer(file);
+    }
+  });
+}
+
+// 当月数据上传：同时分析每列格式
+setupUpload('cur-file', 'cur-area', 'cur-name', (data, ws) => {
+  curData = data;
+  // 分析列格式
+  colMeta = {};
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  // 读表头
+  const headers = [];
+  for (let c = range.s.c; c <= range.e.c; c++) {
+    const addr = XLSX.utils.encode_cell({r:0, c});
+    headers[c] = ws[addr] ? ws[addr].v : '';
+  }
+  // 日期字段名集合（已知）
+  const DATE_COLS = new Set(['所属周期','注册时间','认证时间','首次入会时间']);
+  for (let c = range.s.c; c <= range.e.c; c++) {
+    const colName = headers[c];
+    if (!DATE_COLS.has(colName)) continue;
+    // 取第一个有值的单元格看格式
+    for (let r = range.s.r+1; r <= range.e.r; r++) {
+      const addr = XLSX.utils.encode_cell({r, c});
+      const cell = ws[addr];
+      if (!cell) continue;
+      const fmt  = cell.z || cell.w || '';
+      // 判断类型：t==='n' 是 serial number；t==='d' 是已解析的 Date
+      colMeta[colName] = {
+        isDatetime: cell.t === 'd',   // 已经是 Date 对象（如认证时间）
+        isSerial:   cell.t === 'n',   // 是 serial number（如注册时间、所属周期）
+        fmt: colName === '所属周期' ? 'mm-dd-yy' : 'm/d/yy h:mm'
+      };
+      break;
+    }
+  }
+});
+
+setupUpload('last-file', 'last-area', 'last-name', (data) => { lastData = data; });
+
+// ═══════════════════════════════════════════════
+//  薪资计算核心
+// ═══════════════════════════════════════════════
+// Excel serial number 或字符串 → 毫秒时间戳
+function serialToMs(v) {
+  if (!v && v !== 0) return null;
+  if (typeof v === 'number') return Math.round((v - 25569) * 86400 * 1000);
+  const d = new Date(String(v).replace(' ', 'T'));
+  return isNaN(d.getTime()) ? null : d.getTime();
+}
+
+// Excel serial number 或字符串 → JS Date
+function serialToDate(v) {
+  if (!v && v !== 0) return null;
+  if (typeof v === 'number') {
+    const d = new Date(Math.round((v - 25569) * 86400 * 1000));
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(String(v).replace(' ', 'T'));
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function getLevel(coins, levels) {
+  const n = parseFloat(coins);
+  if (isNaN(n) || n < 0) return '不达标';
+  for (const [lvl, min] of levels) if (n >= min) return lvl;
+  return '不达标';
+}
+
+function monthsSince(v) {
+  if (!v) return 999;
+  let d;
+  if (typeof v === 'number') {
+    // Excel serial number → JS Date
+    d = new Date(Math.round((v - 25569) * 86400 * 1000));
+  } else {
+    d = new Date(v);
+  }
+  if (isNaN(d.getTime())) return 999;
+  const now = new Date();
+  return (now.getFullYear()-d.getFullYear())*12 + (now.getMonth()-d.getMonth());
+}
+
+function parsePayUid(method, anchorId, leaderUid) {
+  const s = String(method||'').trim();
+  if (!s || s==='-' || s==='下发给主播本人') return anchorId;
+  if (s==='下发给公会长') return String(leaderUid||'').trim() || anchorId;
+  const m = s.match(/[（(](\d+)[）)]/);
+  return m ? m[1] : anchorId;
+}
+
+function calcSalary(row, lastCoins, levels, rankMap, isCurLast7=false, lastMergeCoins=0) {
+  // lastMergeCoins: 上月末7天需合并的流水（加到当月coins一起判断档位）
+  const rawCoins = parseFloat(row['总流水']) || 0;
+  const coins    = lastMergeCoins > 0 ? rawCoins + lastMergeCoins : rawCoins;
+  const liveDays = parseFloat(row['语音房有效天']) || 0;
+  const joinDate = row['首次入会时间'];
+  const gender   = String(row['主播性别']||'').trim();
+
+  const lastLevel = (lastCoins!=null && !isNaN(parseFloat(lastCoins)))
+    ? getLevel(lastCoins, levels) : '不达标';
+
+  const noSal = (lvl, reason) => ({
+    curLevel:lvl, lastLevel, aSal:0, gSal:0,
+    aBonus:0, gBonus:0, aTotal:0, gTotal:0,
+    attend:reason, bonusNote:'无档位薪资，不计激励',
+    overCoins:0, overDiamond:0
+  });
+
+  // 当月月末7天入驻：不满足最低档位金币则不结算
+  if (isCurLast7) {
+    const tmpLvl = getLevel(coins, levels);
+    if (tmpLvl === '不达标') {
+      return noSal('不达标', '当月月末7天内入驻且未满足最低档位金币要求，不予结算');
+    }
+    // 满足金币但时长不足 → 继续走正常流程，达标情况会在有效天判断里注明
+  }
+
+  if (['男','male','M','m'].includes(gender) && coins < 6500)
+    return noSal('不达标', '男主播未达E档，无薪资');
+
+  const curLevel = getLevel(coins, levels);
+  if (curLevel==='不达标')
+    return noSal('不达标', '金币未达最低档位要求（F档门槛），无薪资');
+  if (curLevel==='F' && monthsSince(joinDate)>3)
+    return noSal('F(无效)', '入驻超3个月，F档不适用');
+
+  const lr      = levels.find(l=>l[0]===curLevel);
+  const reqDays = lr ? (lr[6]||0) : 0;
+  let ratio=1, attendNote='';
+
+  // 判断是否为当月新入驻主播（首次入会时间UTC+3的年月 = 所属周期年月），新主播不考核时长
+  const periodDtRaw = row['所属周期'];
+  const periodDt2   = periodDtRaw ? serialToDate(periodDtRaw) : null;
+  const joinDtRaw2  = row['首次入会时间'];
+  const joinDtUTC82 = joinDtRaw2 ? serialToDate(joinDtRaw2) : null;
+  let isNewThisMonth = false;
+  if (periodDt2 && joinDtUTC82) {
+    const pY = periodDt2.getUTCFullYear(), pM = periodDt2.getUTCMonth();
+    const joinUTC3 = new Date(joinDtUTC82.getTime() - 5*3600*1000);
+    const jY2 = joinUTC3.getUTCFullYear(), jM2 = joinUTC3.getUTCMonth();
+    isNewThisMonth = (pY === jY2 && pM === jM2);
+  }
+
+  if (reqDays === 0 || isNewThisMonth) {
+    attendNote = isNewThisMonth ? '当月新入驻主播，不考核时长' : '达标（无天数限制）';
+  } else {
+    if      (liveDays >= reqDays)     { ratio=1;   attendNote='达标'; }
+    else if (liveDays >= reqDays*0.8) { ratio=0.8; attendNote=`有效天完成80%（需${reqDays}天，实${liveDays}天），发80%薪资`; }
+    else {
+      ratio=0;
+      attendNote = isCurLast7
+        ? `当月月末7天内入驻，满足档位金币但有效天不足80%（需${reqDays}天，实${liveDays}天），不予结算`
+        : `有效天不足80%（需${reqDays}天，实${liveDays}天），无薪资`;
+    }
+  }
+
+  const aSal = Math.round((lr?.[2]||0)*ratio*100)/100;
+  const gSal = Math.round((lr?.[3]||0)*ratio*100)/100;
+
+  // 单月激励：独立判断，仅看档位，与有效天无关
+  let aBonus=0, gBonus=0, bonusNote='';
+  const s5r  = rankMap['S5+']     ?? 9999;
+  const curR = rankMap[curLevel]  ?? 9999;
+  const lasR = rankMap[lastLevel] ?? 9999;
+  if      (curLevel==='不达标') bonusNote='当月未达最低档位，不发';
+  else if (curR > s5r)          bonusNote='当月未达S5+，不发';
+  else if (lasR > s5r)          bonusNote='上月未达S5+，不发';
+  else if (curR <= lasR)        { aBonus=lr?.[4]||0; gBonus=lr?.[5]||0; bonusNote=''; }
+  else                          bonusNote='当月档位低于上月，不发';
+
+  // 超档金币兑钻
+  // 普通主播：只用当月流水 - 档位门槛
+  // 上月末7天合并主播：当月+上月合并流水（coins已包含）- 档位门槛
+  const minCoins   = lr ? lr[1] : 0;
+  const overCoins  = Math.max(0, coins - minCoins);
+  const overDiamond = Math.round(overCoins * 2);
+
+  return {
+    curLevel, lastLevel, aSal, gSal, aBonus, gBonus,
+    aTotal: Math.round((aSal+aBonus)*100)/100,
+    gTotal: Math.round((gSal+gBonus)*100)/100,
+    attend: attendNote, bonusNote,
+    overCoins, overDiamond
+  };
+}
+
+// ═══════════════════════════════════════════════
+//  主计算
+// ═══════════════════════════════════════════════
+function calculate() {
+  if (!curData)  return showMsg('请先上传当月数据', 'error');
+  if (!lastData) return showMsg('请先上传上月数据', 'error');
+  const btn = document.getElementById('calc-btn');
+  document.getElementById('spinner').style.display='block';
+  document.getElementById('calc-label').textContent='计算中...';
+  btn.disabled=true;
+
+  setTimeout(() => {
+    try {
+      const levels  = getLevels();
+      const rankMap = {};
+      levels.forEach(([lvl],i) => rankMap[lvl]=i);
+      rankMap['不达标']=9999;
+
+      // ── 上月数据处理 ──
+      // 1. 按主播ID聚合上月总流水（sum）
+      // 2. 标记上月末7天入驻且不满足最低档位门槛的主播（流水需合并到当月）
+      const lastCoinMap   = {};  // 上月总流水
+      const lastJoinMap   = {};  // 上月首次入会时间
+      const lastMergeSet  = new Set(); // 需要流水合并的主播ID
+
+      let last7Start = null, last7End = null;
+      let last7StartY=null,last7StartM=null,last7StartD=null,last7EndY=null,last7EndM=null,last7EndD=null;
+      // 从当月数据的所属周期往前推一个月，得到上月末7天范围
+      const curPeriodForLast7 = curData.find(r => r['所属周期'])?.['所属周期'];
+      if (curPeriodForLast7) {
+        const cp = serialToDate(curPeriodForLast7);
+        if (cp) {
+          // 所属周期是UTC+8存储，减5h转UTC+3取年月
+          const cpUTC3 = new Date(cp.getTime() - 5*3600*1000);
+          const curM = cpUTC3.getUTCMonth(), curY = cpUTC3.getUTCFullYear();
+          const lm = curM === 0 ? 11 : curM - 1;
+          const ly = curM === 0 ? curY - 1 : curY;
+          const lastDayOfLastMonth = new Date(ly, lm+1, 0).getDate();
+          last7StartY = ly; last7StartM = lm; last7StartD = lastDayOfLastMonth - 6;
+          last7EndY   = ly; last7EndM   = lm; last7EndD   = lastDayOfLastMonth;
+        }
+      }
+      if (lastData.length > 0) {
+
+        // 聚合上月流水
+        lastData.forEach(r => {
+          const id  = String(r['主播ID']||'').trim();
+          if (!id) return;
+          const val = parseFloat(r['总流水'])||0;
+          lastCoinMap[id] = (lastCoinMap[id]||0) + val;
+        });
+
+      }
+
+      // 当月去重：
+      // 1. 总流水先按主播ID聚合sum（同一主播多行记录代表不同公会期间的流水）
+      // 2. 公会信息取认证时间最新且有公会长UID的行
+      const flowSumMap  = {};  // 主播ID → 总流水sum
+      const liveDaysMap = {};  // 主播ID → 语音房有效天sum
+      const latestMap   = {};  // 主播ID → 最新公会信息行
+
+      // 过滤当前身份为「用户」的行，不参与计算
+      const filteredCurData = curData.filter(row => {
+        const identity = String(row['当前身份']||'').trim();
+        return identity !== '用户';
+      });
+
+      filteredCurData.forEach(row => {
+        const id = String(row['主播ID']||'').trim();
+        if (!id) return;
+        // 聚合总流水
+        flowSumMap[id] = (flowSumMap[id]||0) + (parseFloat(row['总流水'])||0);
+        // 聚合语音房有效天
+        liveDaysMap[id] = (liveDaysMap[id]||0) + (parseFloat(row['语音房有效天'])||0);
+        // 取最新公会信息
+        const t = parseFloat(row['认证时间'])||0;
+        const hasGuild = row['公会长UID'] &&
+          String(row['公会长UID']).trim() !== '' &&
+          String(row['公会长UID']).trim() !== '-' &&
+          String(row['公会长UID']).trim() !== 'NaN';
+        const prev = latestMap[id];
+        if (!prev) {
+          latestMap[id] = {...row, _t:t, _hasGuild:hasGuild};
+        } else if (t > prev._t) {
+          latestMap[id] = {...row, _t:t, _hasGuild:hasGuild};
+        } else if (t === prev._t && hasGuild && !prev._hasGuild) {
+          latestMap[id] = {...row, _t:t, _hasGuild:hasGuild};
+        }
+      });
+
+      // 把聚合后的总流水写回最新行
+      curRawRows = Object.values(latestMap).map(row => ({
+        ...row,
+        '总流水': flowSumMap[String(row['主播ID']||'').trim()] || 0
+      }));
+
+      // 判断哪些主播需要流水合并（上月末7天入驻 且 上月流水不满足最低档位）
+      // 遍历当月所有主播，用当月首次入会时间（UTC+3）判断是否在上月末7天内
+      // 上月流水取 lastCoinMap[id]，没有上月记录则为0
+      if (last7StartY !== null) {
+        Object.entries(latestMap).forEach(([id, curRow]) => {
+          const joinRaw = curRow['首次入会时间'];
+          if (!joinRaw) return;
+          const joinDtUTC8 = serialToDate(joinRaw);
+          if (!joinDtUTC8) return;
+          // UTC+8 减5h 转UTC+3，getUTC*取年月日
+          const utc3Date = new Date(joinDtUTC8.getTime() - 5*3600*1000);
+          const jY = utc3Date.getUTCFullYear(), jM = utc3Date.getUTCMonth(), jD = utc3Date.getUTCDate();
+          const inLast7 = (jY > last7StartY || (jY === last7StartY && jM > last7StartM) || (jY === last7StartY && jM === last7StartM && jD >= last7StartD)) &&
+                          (jY < last7EndY   || (jY === last7EndY   && jM < last7EndM)   || (jY === last7EndY   && jM === last7EndM   && jD <= last7EndD));
+          if (inLast7) {
+            const lastCoins = lastCoinMap[id] || 0;
+            const lvl = getLevel(lastCoins, levels);
+            if (lvl === '不达标') {
+              lastMergeSet.add(id);
+            }
+          }
+        });
+      }
+
+      // 推算当月/上月月份标签（从所属周期字段）
+      const curPeriodRaw  = curRawRows.find(r=>r['所属周期'])?.['所属周期'];
+      const curPeriodDt   = serialToDate(curPeriodRaw);
+      window._curMonthLabel  = curPeriodDt ? `${curPeriodDt.getMonth()+1}月` : '当月';
+      // 上月标签
+      if (curPeriodDt) {
+        const lm = curPeriodDt.getMonth() === 0 ? 12 : curPeriodDt.getMonth();
+        window._lastMonthLabel = `${lm}月`;
+      } else {
+        window._lastMonthLabel = '上月';
+      }
+
+      resultRows = curRawRows.map(row => {
+        const id        = String(row['主播ID']||'').trim();
+        const nickname  = row['主播昵称']||'';
+        const guildId   = String(row['公会ID']||'').trim();
+        const guildName = row['公会名称']||'';
+        const leaderUid = String(row['公会长UID']||'').trim();
+        const payUid    = parsePayUid(row['薪资下发方式'], id, leaderUid);
+        // 当月末7天入驻判断
+        const joinRaw    = row['首次入会时间'];
+        const joinDtUTC8 = serialToDate(joinRaw);
+        const periodRaw  = row['所属周期'];
+        const periodDt   = serialToDate(periodRaw);
+        let isCurLast7   = false;
+        if (joinDtUTC8 && periodDt) {
+          // 首次入会时间 UTC+8 → UTC+3（减5h），再+3h取UTC年月日 = UTC+3年月日
+          const joinUTC3Date = new Date(joinDtUTC8.getTime() - 2*3600*1000);
+          const jY = joinUTC3Date.getUTCFullYear(), jM = joinUTC3Date.getUTCMonth(), jD = joinUTC3Date.getUTCDate();
+          // 所属周期是当月1号0点的serial，直接取UTC年月即为当月
+          const cy = periodDt.getUTCFullYear(), cm = periodDt.getUTCMonth();
+          const lastDayOfCurMonth = new Date(cy, cm+1, 0).getDate();
+          const c7SD = lastDayOfCurMonth - 6, c7ED = lastDayOfCurMonth;
+          const jInt = jY*10000+jM*100+jD;
+          isCurLast7 = jInt >= (cy*10000+cm*100+c7SD) && jInt <= (cy*10000+cm*100+c7ED);
+          // isCurLast7 已由上方 jInt 整数比较赋值，此行废弃
+        }
+
+        // 上月末7天入驻需要流水合并的主播：当月流水 + 上月流水
+        let mergedLastCoins = lastCoinMap[id] ?? null;
+        if (lastMergeSet.has(id)) {
+          // 合并：当月总流水已在row['总流水']，这里只需把上月流水加到lastCoins
+          // calcSalary内部会用 coins + lastCoinsVal 计算超档，所以lastCoins保持上月值
+          // 但档位判断要用合并后的值，通过isMerge标志传入
+          mergedLastCoins = lastCoinMap[id] ?? 0; // 保持上月流水供超档计算用
+        }
+
+        // 用聚合后的语音房有效天覆盖row里的值，确保薪资计算使用正确值
+        const rowWithSum = {...row, '语音房有效天': liveDaysMap[id]||0};
+        const sal = calcSalary(rowWithSum, mergedLastCoins, levels, rankMap, isCurLast7, lastMergeSet.has(id) ? (lastCoinMap[id]||0) : 0);
+        // 记录原始当月/上月流水（用于导出显示）
+        sal._curFlow      = flowSumMap[id] || 0;           // 纯当月流水
+        sal._lastFlow     = lastMergeSet.has(id) ? (lastCoinMap[id] || 0) : 0; // 上月末7天不达档主播显示上月流水，其他为0
+        sal._totalCoins   = (flowSumMap[id]||0) + (lastMergeSet.has(id) ? (lastCoinMap[id]||0) : 0); // 定档用的金币数（当月+上月末7天合并）
+        sal._liveDays     = liveDaysMap[id] || 0;  // 语音房有效天（聚合sum）
+        sal._joinDate     = row['首次入会时间'];               // 首次入会时间
+        sal._lastMergeFlow = lastMergeSet.has(id) ? (lastCoinMap[id] ?? null) : null; // 上月末7天不达档流水（无上月记录则为null显示空）
+        return { id, nickname, payUid, guildId, guildName, guildLeader:leaderUid, ...sal };
+      });
+
+      const total  = resultRows.length;
+      const paid   = resultRows.filter(r=>r.aTotal>0).length;
+      const guilds = new Set(resultRows.map(r=>r.guildId).filter(Boolean)).size;
+      const aSum   = resultRows.reduce((s,r)=>s+r.aTotal,0);
+      const gSum   = resultRows.reduce((s,r)=>s+r.gTotal,0);
+
+      document.getElementById('st-total').textContent  = total.toLocaleString();
+      document.getElementById('st-paid').textContent   = paid.toLocaleString();
+      document.getElementById('st-guilds').textContent = guilds.toLocaleString();
+      document.getElementById('st-anchor').textContent = '$'+aSum.toFixed(2);
+      document.getElementById('st-guild').textContent  = '$'+gSum.toFixed(2);
+      document.getElementById('st-sum').textContent     = '$'+(aSum+gSum).toFixed(2);
+      const diamondSum = resultRows.reduce((s,r)=>s+(r.overDiamond||0),0);
+      document.getElementById('st-diamond').textContent = diamondSum.toLocaleString();
+
+      // 分批渲染结果表格，每批500行，避免阻塞主线程
+      const tbody    = document.getElementById('result-tbody');
+      tbody.innerHTML = '';
+      const BATCH = 500;
+      let   rendered = 0;
+      function renderBatch() {
+        const fragment = document.createDocumentFragment();
+        const end = Math.min(rendered + BATCH, resultRows.length);
+        for (let i = rendered; i < end; i++) {
+          const r  = resultRows[i];
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td style="font-family:'DM Mono',monospace;color:var(--text2);font-size:11px">${r.id}</td>
+            <td>${r.nickname}</td>
+            <td style="font-family:'DM Mono',monospace;color:var(--accent);font-size:11px">${r.payUid}</td>
+            <td>${levelTag(r.curLevel)}</td>
+            <td>${levelTag(r.lastLevel)}</td>
+            <td style="font-family:'DM Mono',monospace">${r.aSal}</td>
+            <td style="font-family:'DM Mono',monospace">${r.gSal}</td>
+            <td style="font-family:'DM Mono',monospace;color:${r.aBonus>0?'var(--success)':'var(--text3)'}">${r.aBonus}</td>
+            <td style="font-family:'DM Mono',monospace;color:${r.gBonus>0?'var(--success)':'var(--text3)'}">${r.gBonus}</td>
+            <td style="font-family:'DM Mono',monospace;font-weight:600;color:${r.aTotal>0?'var(--success)':'var(--text3)'}">${r.aTotal}</td>
+            <td style="font-family:'DM Mono',monospace;font-weight:600;color:${r.gTotal>0?'var(--warning)':'var(--text3)'}">${r.gTotal}</td>
+            <td style="font-size:11px;color:${r.attend==='达标'||r.attend.includes('达标（无')?'var(--success)':r.attend.includes('80%')&&!r.attend.includes('不足')?'var(--warning)':r.attend.includes('不足')||r.attend.includes('不予')||r.attend.includes('不达标')||r.attend.includes('不适用')||r.attend.includes('无薪资')?'var(--danger)':'var(--warning)'}">${r.attend}</td>
+            <td style="font-size:11px;color:${!r.bonusNote?'var(--success)':'var(--text3)'}">${r.bonusNote}</td>
+            <td style="font-size:11px;color:var(--text3)">${r.guildId}</td>
+            <td style="font-size:11px">${r.guildName}</td>
+            <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text2)">${r.guildLeader}</td>`;
+          fragment.appendChild(tr);
+        }
+        tbody.appendChild(fragment);
+        rendered = end;
+        if (rendered < resultRows.length) requestAnimationFrame(renderBatch);
+      }
+      requestAnimationFrame(renderBatch);
+
+      document.getElementById('result-section').style.display='block';
+      showMsg(`计算完成！共处理 ${total} 条记录，其中 ${paid} 人有薪资。`, 'success');
+      // 自动保存历史记录
+      const label = new Date().toLocaleString('zh-CN') + `（${total}人 / 主播$${aSum.toFixed(0)} / 公会$${gSum.toFixed(0)}）`;
+      saveHistory(label).catch(e => console.warn('保存历史失败', e));
+      document.getElementById('result-section').scrollIntoView({behavior:'smooth'});
+    } catch(e) { showMsg('计算出错：'+e.message,'error'); console.error(e); }
+    btn.disabled=false;
+    document.getElementById('spinner').style.display='none';
+    document.getElementById('calc-label').textContent='⚡ 重新计算';
+  }, 50);
+}
+
+// ═══════════════════════════════════════════════
+//  导出 Excel
+//  时间字段处理规则：
+//  - 所属周期 / 注册时间 / 首次入会时间：源数据本就是 serial number，直接写回数字 + 设置格式
+//  - 认证时间：源数据是 datetime 字符串（XLSX读进来是字符串），转换为 serial number + 设置格式
+// ═══════════════════════════════════════════════
+function datetimeToSerial(v) {
+  if (v === null || v === undefined || v === '') return '';
+  // 已经是数字（serial number）直接返回
+  if (typeof v === 'number') return v;
+  // 字符串或 Date 转 serial number
+  const d = v instanceof Date ? v : new Date(String(v).replace(' ', 'T'));
+  if (isNaN(d.getTime())) return v;
+  // Excel serial number = (JS timestamp ms / 86400000) + 25569
+  return d.getTime() / 86400000 + 25569;
+}
+
+// 已知各时间列的 Excel number_format
+const DATE_FMT = {
+  '所属周期':     'mm-dd-yy',
+  '注册时间':     'm/d/yy h:mm',
+  '认证时间':     'm/d/yy h:mm',
+  '首次入会时间': 'm/d/yy h:mm',
+};
+const DATE_COL_SET = new Set(Object.keys(DATE_FMT));
+
+// 数值字段（导出时强制为 number 类型）
+const NUM_COLS = new Set([
+  '主播ID','房间ID','语音房有效天','公会ID','公会长UID',
+  '母公会ID','首次入会公会ID','首次入会公会长UID',
+  '匹配有效天-3min','3min 通话数','匹配通话数','陪聊基础收益-3min',
+  '语音房流水','语音匹配流水','私聊流水','总流水','总收礼流水',
+  '承接用户数(付费消息)','承接用户数(付费消息3条)','任务完成总次数',
+  '活动任务奖励($)','主播任务奖励(钻石)','对话任务完成次数','进房任务完成次数',
+  '送礼任务完成次数','匹配任务完成次数','邀请上麦任务完成次数','限时任务完成次数',
+  '限时任务奖励($)','视频服务流水（金币）','视频收礼流水（金币）','有效天_tr',
+  'PK 收礼金币数','主播房间收礼金币数','主播房间 PK 送礼钻石数','主播房间送礼钻石数'
+]);
+
+function downloadExcel() {
+  if (!resultRows.length) return showMsg('请先计算后再导出', 'error');
+  showMsg('正在生成文件，请稍候...', 'info');
+  const rawKeys = curRawRows.length ? Object.keys(curRawRows[0]).filter(k=>!k.startsWith('_')) : [];
+  setTimeout(() => {
+    try {
+      exportWorkbook(resultRows, [], '薪资结算结果.xlsx');
+      showMsg('导出成功！文件已下载到本地。', 'success');
+    } catch(e) { showMsg('导出失败：'+e.message,'error'); console.error(e); }
+  }, 100);
+}
+
+// ═══════════════════════════════════════════════
+//  工具函数
+// ═══════════════════════════════════════════════
+function levelTag(lvl) {
+  if (!lvl||lvl==='不达标'||lvl==='F(无效)') return `<span class="tag tag-fail">${lvl||'不达标'}</span>`;
+  if (lvl.startsWith('SSP')) return `<span class="tag tag-ssp">${lvl}</span>`;
+  if (lvl.startsWith('SS'))  return `<span class="tag tag-ss">${lvl}</span>`;
+  if (lvl.startsWith('S'))   return `<span class="tag tag-s">${lvl}</span>`;
+  return `<span class="tag tag-low">${lvl}</span>`;
+}
+
+function showMsg(text, type='info') {
+  const el = document.getElementById('msg');
+  el.className=`msg show ${type}`;
+  el.innerHTML=(type==='error'?'❌ ':type==='success'?'✅ ':'ℹ️ ')+text;
+}
+
+renderOfferTable(JSON.parse(JSON.stringify(DEFAULT_LEVELS)));
+
+// ═══════════════════════════════════════════════
+//  IndexedDB 历史记录
+// ═══════════════════════════════════════════════
+const DB_NAME = 'SalaryToolDB', DB_VER = 1, STORE = 'history';
+let db = null;
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    if (db) return resolve(db);
+    const req = indexedDB.open(DB_NAME, DB_VER);
+    req.onupgradeneeded = e => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains(STORE)) {
+        const store = d.createObjectStore(STORE, {keyPath:'id', autoIncrement:true});
+        store.createIndex('createdAt', 'createdAt', {unique:false});
+      }
+    };
+    req.onsuccess = e => { db = e.target.result; resolve(db); };
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+
+function dbAdd(record) {
+  return openDB().then(d => new Promise((resolve, reject) => {
+    const tx  = d.transaction(STORE, 'readwrite');
+    const req = tx.objectStore(STORE).add(record);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = e => reject(e.target.error);
+  }));
+}
+
+function dbGetAll() {
+  return openDB().then(d => new Promise((resolve, reject) => {
+    const tx  = d.transaction(STORE, 'readonly');
+    const req = tx.objectStore(STORE).index('createdAt').getAll();
+    req.onsuccess = () => resolve(req.result.reverse()); // 最新在前
+    req.onerror   = e => reject(e.target.error);
+  }));
+}
+
+function dbDelete(id) {
+  return openDB().then(d => new Promise((resolve, reject) => {
+    const tx  = d.transaction(STORE, 'readwrite');
+    const req = tx.objectStore(STORE).delete(id);
+    req.onsuccess = () => resolve();
+    req.onerror   = e => reject(e.target.error);
+  }));
+}
+
+function dbClear() {
+  return openDB().then(d => new Promise((resolve, reject) => {
+    const tx  = d.transaction(STORE, 'readwrite');
+    const req = tx.objectStore(STORE).clear();
+    req.onsuccess = () => resolve();
+    req.onerror   = e => reject(e.target.error);
+  }));
+}
+
+// 保存本次计算结果
+async function saveHistory(label) {
+  const record = {
+    createdAt:  Date.now(),
+    label:      label || new Date().toLocaleString('zh-CN'),
+    total:      resultRows.length,
+    paid:       resultRows.filter(r=>r.aTotal>0).length,
+    guilds:     new Set(resultRows.map(r=>r.guildId).filter(Boolean)).size,
+    aSum:       Math.round(resultRows.reduce((s,r)=>s+r.aTotal,0)*100)/100,
+    gSum:       Math.round(resultRows.reduce((s,r)=>s+r.gTotal,0)*100)/100,
+    levels:     getLevels(),
+    resultRows: JSON.parse(JSON.stringify(resultRows)),
+    rawKeys:    curRawRows.length ? Object.keys(curRawRows[0]).filter(k=>!k.startsWith('_')) : [],
+  };
+  await dbAdd(record);
+  renderHistory();
+}
+
+// 渲染历史列表
+async function renderHistory() {
+  const list    = document.getElementById('history-list');
+  const empty   = document.getElementById('history-empty');
+  const clearBtn= document.getElementById('clear-all-btn');
+  try {
+    const records = await dbGetAll();
+    if (!records.length) {
+      empty.style.display='block'; list.innerHTML=''; clearBtn.style.display='none'; return;
+    }
+    empty.style.display='none'; clearBtn.style.display='';
+    list.innerHTML = records.map(rec => {
+      const total$ = Math.round((rec.aSum+rec.gSum)*100)/100;
+      return `<div class="history-item">
+        <div class="history-meta">
+          <div class="history-title">${rec.label}</div>
+          <div class="history-sub">
+            <span>👥 ${rec.total.toLocaleString()} 主播</span>
+            <span>💰 有薪资 ${rec.paid.toLocaleString()} 人</span>
+            <span>🏠 ${rec.guilds} 个公会</span>
+            <span style="color:var(--success)">主播 $${rec.aSum.toFixed(2)}</span>
+            <span style="color:var(--warning)">公会 $${rec.gSum.toFixed(2)}</span>
+            <span style="color:var(--accent)">合计 $${total$.toFixed(2)}</span>
+          </div>
+        </div>
+        <div class="history-actions">
+          <button class="btn btn-secondary btn-sm" onclick="reExport(${rec.id})">⬇ 导出</button>
+          <button class="btn btn-secondary btn-sm" style="color:var(--danger);border-color:rgba(248,113,113,.3)" onclick="deleteHistory(${rec.id})">✕</button>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) { console.error('读取历史记录失败', e); }
+}
+
+async function deleteHistory(id) {
+  await dbDelete(id);
+  renderHistory();
+}
+
+async function clearAllHistory() {
+  if (!confirm('确定清空全部历史记录？')) return;
+  await dbClear();
+  renderHistory();
+}
+
+// 从历史记录重新导出 Excel
+async function reExport(id) {
+  const records = await dbGetAll();
+  const rec = records.find(r=>r.id===id);
+  if (!rec) return showMsg('记录不存在', 'error');
+
+  // 临时恢复数据然后复用 downloadExcel 逻辑
+  const _resultRows = resultRows, _curRawRows = curRawRows;
+  resultRows = rec.resultRows;
+  // 构造最简 curRawRows（仅用于导出原始字段列表）
+  curRawRows = rec.rawKeys.length ? rec.resultRows.map(r => {
+    const raw = {};
+    rec.rawKeys.forEach(k => raw[k] = r[k] ?? '');
+    return raw;
+  }) : [];
+
+  showMsg('正在生成文件...', 'info');
+  setTimeout(() => {
+    try {
+      exportWorkbook(rec.resultRows, [], `薪资结算_${rec.label.replace(/[/:]/g,'-')}.xlsx`);
+      showMsg('导出成功！', 'success');
+    } catch(e) { showMsg('导出失败：'+e.message, 'error'); }
+    resultRows = _resultRows;
+    curRawRows = _curRawRows;
+  }, 100);
+}
+
+// ═══════════════════════════════════════════════
+//  抽取导出逻辑为独立函数
+// ═══════════════════════════════════════════════
+function exportWorkbook(rows, _rawKeys, filename) {
+  const wb = XLSX.utils.book_new();
+
+  // ── Sheet1：薪资明细（只含计算结果列，大幅提升导出速度）──
+  const curLbl  = window._curMonthLabel  || '当月';
+  const lastLbl = window._lastMonthLabel || '上月';
+  const s1Hdrs = [
+    '主播ID','主播昵称','薪资下发UID','公会ID','公会名称','公会长UID',
+    '当月档位','上月档位',
+    '主播档位薪资($)','公会档位薪资($)',
+    '主播单月激励($)','公会单月激励($)',
+    '主播薪资总计($)','公会薪资总计($)',
+    '超档金币','超档金币兑钻',
+    `${curLbl}流水`, `${lastLbl}流水`, '总流水(当月+上月)',
+    '语音房有效天', '首次入会时间(UTC+8)', '首次入会时间(UTC+3)', `${lastLbl}末7天流水(不达档)`,
+    '达标情况','激励说明'
+  ];
+  const s1Data = rows.map(r => [
+    r.id, r.nickname, r.payUid, r.guildId, r.guildName, r.guildLeader,
+    r.curLevel||'不达标', r.lastLevel||'不达标',
+    r.aSal||0, r.gSal||0,
+    r.aBonus||0, r.gBonus||0,
+    r.aTotal||0, r.gTotal||0,
+    r.overCoins||0, r.overDiamond||0,
+    r._curFlow||0, r._lastFlow||0, r._totalCoins||0,
+    r._liveDays||0,
+    r._joinDate != null ? datetimeToSerial(r._joinDate) : '',
+    r._joinDate != null ? datetimeToSerial(new Date(serialToMs(r._joinDate) - 5*3600*1000)) : '',
+    (r._lastMergeFlow != null && r._lastMergeFlow > 0) ? r._lastMergeFlow : '',
+    r.attend||'', r.bonusNote||''
+  ]);
+  const ws1 = XLSX.utils.aoa_to_sheet([s1Hdrs, ...s1Data]);
+  ws1['!cols'] = [14,16,14,10,20,14,10,10,16,16,16,16,16,16,12,12,14,14,16,12,18,18,14,32,20].map(w=>({wch:w}));
+  // 首次入会时间列（s1Hdrs里的index）设置日期格式
+  const joinDateCols = [s1Hdrs.indexOf('首次入会时间(UTC+8)'), s1Hdrs.indexOf('首次入会时间(UTC+3)')];
+  for (const joinDateColIdx of joinDateCols) {
+    if (joinDateColIdx < 0) continue;
+    for (let ri = 1; ri <= s1Data.length; ri++) {
+      const addr = XLSX.utils.encode_cell({r:ri, c:joinDateColIdx});
+      const cell = ws1[addr];
+      if (cell && cell.v !== '' && cell.v !== null) {
+        cell.t = 'n';
+        cell.z = 'm/d/yy h:mm';
+        delete cell.w;
+      }
+    }
+  }
+  // 末7天流水列强制为数字类型，避免被识别为日期
+  const mergeFlowColIdx = s1Hdrs.findIndex(h => h.includes('末7天流水'));
+  if (mergeFlowColIdx >= 0) {
+    for (let ri = 1; ri <= s1Data.length; ri++) {
+      const addr = XLSX.utils.encode_cell({r:ri, c:mergeFlowColIdx});
+      const cell = ws1[addr];
+      if (cell && cell.v !== '' && cell.v !== null) {
+        cell.t = 'n';
+        delete cell.z;
+        delete cell.w;
+      }
+    }
+  }
+  XLSX.utils.book_append_sheet(wb, ws1, '薪资明细');
+
+  // 公会汇总
+  const gMap = {};
+  rows.forEach(r => {
+    if (!r.guildId) return;
+    if (!gMap[r.guildId]) gMap[r.guildId]={guildId:r.guildId,guildName:r.guildName,guildLeader:r.guildLeader,count:0,gSal:0,gBonus:0,gTotal:0};
+    gMap[r.guildId].count++; gMap[r.guildId].gSal+=r.gSal; gMap[r.guildId].gBonus+=r.gBonus; gMap[r.guildId].gTotal+=r.gTotal;
+  });
+  const s2Hdrs = ['公会ID','公会名称','公会长UID','旗下主播数','公会档位薪资合计($)','公会单月激励合计($)','公会薪资总计($)'];
+  const s2Data = Object.values(gMap).sort((a,b)=>b.gTotal-a.gTotal)
+    .map(g=>[g.guildId,g.guildName,g.guildLeader,g.count,
+      Math.round(g.gSal*100)/100,Math.round(g.gBonus*100)/100,Math.round(g.gTotal*100)/100]);
+
+  const ws2 = XLSX.utils.aoa_to_sheet([s2Hdrs,...s2Data]);
+  ws2['!cols']=[14,22,14,12,22,22,18].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb, ws2, '公会薪资汇总');
+
+  // ── Sheet3：主播薪资下发给主播本人明细（payUid === 主播ID）──
+  const s3RowsFinal = rows.filter(r => String(r.payUid||'').trim() === String(r.id||'').trim() && r.aTotal > 0);
+  const s3Hdrs = ['薪资下发UID（主播）', '主播昵称', '主播薪资总计($)'];
+  const s3Data = s3RowsFinal.map(r => [r.payUid, r.nickname, r.aTotal]);
+  const ws3 = XLSX.utils.aoa_to_sheet([s3Hdrs, ...s3Data]);
+  ws3['!cols'] = [18,18,18].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb, ws3, '主播薪资-下发主播本人');
+
+  // ── Sheet4：主播薪资转给公会长/指定UID明细 ──
+  const s4RowsFinal = rows.filter(r => String(r.payUid||'').trim() !== String(r.id||'').trim() && r.aTotal > 0);
+  const s4Hdrs = ['主播UID', '主播昵称', '主播薪资总计($)', '薪资下发UID'];
+  const s4Data = s4RowsFinal.map(r => [r.id, r.nickname, r.aTotal, r.payUid]);
+  const ws4 = XLSX.utils.aoa_to_sheet([s4Hdrs, ...s4Data]);
+  ws4['!cols'] = [16,18,18,16].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb, ws4, '主播薪资-转给公会长');
+
+  // ── Sheet5：公会长薪资下发明细（按公会长UID聚合，包含公会长UID为空的情况） ──
+  const leaderMap = {};
+  rows.forEach(r => {
+    if (r.gTotal <= 0) return;
+    const uid = String(r.guildLeader||'').trim(); // 空值用空字符串，不过滤
+    if (!leaderMap[uid]) leaderMap[uid] = { leaderUid: uid, guildName: r.guildName, gTotal: 0 };
+    leaderMap[uid].gTotal += r.gTotal;
+  });
+  const s5Hdrs = ['公会长UID', '公会名称', '公会薪资总计($)'];
+  const s5Data = Object.values(leaderMap)
+    .sort((a,b) => b.gTotal - a.gTotal)
+    .map(g => [g.leaderUid, g.guildName, Math.round(g.gTotal*100)/100]);
+  const ws5 = XLSX.utils.aoa_to_sheet([s5Hdrs, ...s5Data]);
+  ws5['!cols'] = [16,22,18].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb, ws5, '公会长薪资下发明细');
+
+  // ── Sheet7（原Sheet6挪后）先插入：金币扣减 ──
+  const s7Hdrs = ['主播UID', '总流水'];
+  const s7Data = rows.filter(r => (r._curFlow||0) > 0).map(r => [r.id, r._curFlow||0]);
+  const ws7 = XLSX.utils.aoa_to_sheet([s7Hdrs, ...s7Data]);
+  ws7['!cols'] = [16, 14].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb, ws7, '金币扣减');
+
+  // ── Sheet6：超档金币兑钻（仅有档位的主播）──
+  const s6Hdrs = ['主播UID', '主播昵称', '超档金币', '超档金币兑钻'];
+  const s6Data = rows
+    .filter(r => r.curLevel !== '不达标' && r.curLevel !== 'F(无效)' && r.overCoins > 0)
+    .map(r => [r.id, r.nickname, r.overCoins, r.overDiamond]);
+  const ws6 = XLSX.utils.aoa_to_sheet([s6Hdrs, ...s6Data]);
+  ws6['!cols'] = [16,18,14,14].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb, ws6, '超档金币兑钻');
+
+  const wbout = XLSX.write(wb,{bookType:'xlsx',type:'array'});
+  const blob  = new Blob([wbout],{type:'application/octet-stream'});
+  const url   = URL.createObjectURL(blob);
+  const a     = document.createElement('a');
+  a.href=url; a.download=filename;
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{URL.revokeObjectURL(url);a.remove();},1000);
+}
+
+// 初始化渲染历史
+renderHistory();
+</script>
+</body>
+</html>
