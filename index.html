@@ -401,6 +401,14 @@ setupUpload('last-file', 'last-area', 'last-name', (data) => { lastData = data; 
 // ═══════════════════════════════════════════════
 //  薪资计算核心
 // ═══════════════════════════════════════════════
+// Excel serial number 或字符串 → 毫秒时间戳
+function serialToMs(v) {
+  if (!v && v !== 0) return null;
+  if (typeof v === 'number') return Math.round((v - 25569) * 86400 * 1000);
+  const d = new Date(String(v).replace(' ', 'T'));
+  return isNaN(d.getTime()) ? null : d.getTime();
+}
+
 // Excel serial number 或字符串 → JS Date
 function serialToDate(v) {
   if (!v && v !== 0) return null;
@@ -480,8 +488,22 @@ function calcSalary(row, lastCoins, levels, rankMap, isCurLast7=false, lastMerge
   const lr      = levels.find(l=>l[0]===curLevel);
   const reqDays = lr ? (lr[6]||0) : 0;
   let ratio=1, attendNote='';
-  if (reqDays === 0) {
-    attendNote = '达标（无天数限制）';
+
+  // 判断是否为当月新入驻主播（首次入会时间UTC+3的年月 = 所属周期年月），新主播不考核时长
+  const periodDtRaw = row['所属周期'];
+  const periodDt2   = periodDtRaw ? serialToDate(periodDtRaw) : null;
+  const joinDtRaw2  = row['首次入会时间'];
+  const joinDtUTC82 = joinDtRaw2 ? serialToDate(joinDtRaw2) : null;
+  let isNewThisMonth = false;
+  if (periodDt2 && joinDtUTC82) {
+    const pY = periodDt2.getUTCFullYear(), pM = periodDt2.getUTCMonth();
+    const joinUTC3 = new Date(joinDtUTC82.getTime() - 5*3600*1000);
+    const jY2 = joinUTC3.getUTCFullYear(), jM2 = joinUTC3.getUTCMonth();
+    isNewThisMonth = (pY === jY2 && pM === jM2);
+  }
+
+  if (reqDays === 0 || isNewThisMonth) {
+    attendNote = isNewThisMonth ? '当月新入驻主播，不考核时长' : '达标（无天数限制）';
   } else {
     if      (liveDays >= reqDays)     { ratio=1;   attendNote='达标'; }
     else if (liveDays >= reqDays*0.8) { ratio=0.8; attendNote=`有效天完成80%（需${reqDays}天，实${liveDays}天），发80%薪资`; }
@@ -548,58 +570,41 @@ function calculate() {
       const lastJoinMap   = {};  // 上月首次入会时间
       const lastMergeSet  = new Set(); // 需要流水合并的主播ID
 
-      if (lastData.length > 0) {
-        // 从上月数据的所属周期推算上月末7天范围
-        const lastPeriodRaw = lastData.find(r => r['所属周期'])?.['所属周期'];
-        let last7Start = null, last7End = null;
-        if (lastPeriodRaw) {
-          const lp = serialToDate(lastPeriodRaw);
-          if (lp) {
-            // 上月 = 所属周期所在月份
-            const ly = lp.getFullYear(), lm = lp.getMonth(); // getMonth() 0-indexed
-            const lastDayOfMonth = new Date(ly, lm+1, 0).getDate();
-            last7Start = new Date(ly, lm, lastDayOfMonth - 6);
-            last7End   = new Date(ly, lm+1, 0, 23, 59, 59);
-          }
+      let last7Start = null, last7End = null;
+      let last7StartY=null,last7StartM=null,last7StartD=null,last7EndY=null,last7EndM=null,last7EndD=null;
+      // 从当月数据的所属周期往前推一个月，得到上月末7天范围
+      const curPeriodForLast7 = curData.find(r => r['所属周期'])?.['所属周期'];
+      if (curPeriodForLast7) {
+        const cp = serialToDate(curPeriodForLast7);
+        if (cp) {
+          // 所属周期是UTC+8存储，减5h转UTC+3取年月
+          const cpUTC3 = new Date(cp.getTime() - 5*3600*1000);
+          const curM = cpUTC3.getUTCMonth(), curY = cpUTC3.getUTCFullYear();
+          const lm = curM === 0 ? 11 : curM - 1;
+          const ly = curM === 0 ? curY - 1 : curY;
+          const lastDayOfLastMonth = new Date(ly, lm+1, 0).getDate();
+          last7StartY = ly; last7StartM = lm; last7StartD = lastDayOfLastMonth - 6;
+          last7EndY   = ly; last7EndM   = lm; last7EndD   = lastDayOfLastMonth;
         }
+      }
+      if (lastData.length > 0) {
 
-        // 聚合上月流水，同时取每个主播最新一行的首次入会时间
-        const lastLatest = {};
+        // 聚合上月流水
         lastData.forEach(r => {
           const id  = String(r['主播ID']||'').trim();
           if (!id) return;
           const val = parseFloat(r['总流水'])||0;
           lastCoinMap[id] = (lastCoinMap[id]||0) + val;
-          // 取认证时间最新的行记录首次入会时间
-          const t = parseFloat(r['认证时间'])||0;
-          if (!lastLatest[id] || t > lastLatest[id].t) {
-            lastLatest[id] = { t, joinDate: r['首次入会时间'] };
-          }
         });
 
-        // 判断哪些主播需要流水合并（上月末7天入驻 且 上月流水不满足最低档位）
-        if (last7Start && last7End) {
-          Object.entries(lastCoinMap).forEach(([id, coins]) => {
-            const joinRaw = lastLatest[id]?.joinDate;
-            if (!joinRaw) return;
-            const joinDt = serialToDate(joinRaw);
-            if (!joinDt) return;
-            if (joinDt >= last7Start && joinDt <= last7End) {
-              // 上月末7天入驻，检查上月流水是否满足最低档位
-              const lvl = getLevel(coins, levels);
-              if (lvl === '不达标') {
-                lastMergeSet.add(id); // 需要合并流水
-              }
-            }
-          });
-        }
       }
 
       // 当月去重：
       // 1. 总流水先按主播ID聚合sum（同一主播多行记录代表不同公会期间的流水）
       // 2. 公会信息取认证时间最新且有公会长UID的行
-      const flowSumMap = {};  // 主播ID → 总流水sum
-      const latestMap  = {};  // 主播ID → 最新公会信息行
+      const flowSumMap  = {};  // 主播ID → 总流水sum
+      const liveDaysMap = {};  // 主播ID → 语音房有效天sum
+      const latestMap   = {};  // 主播ID → 最新公会信息行
 
       // 过滤当前身份为「用户」的行，不参与计算
       const filteredCurData = curData.filter(row => {
@@ -612,6 +617,8 @@ function calculate() {
         if (!id) return;
         // 聚合总流水
         flowSumMap[id] = (flowSumMap[id]||0) + (parseFloat(row['总流水'])||0);
+        // 聚合语音房有效天
+        liveDaysMap[id] = (liveDaysMap[id]||0) + (parseFloat(row['语音房有效天'])||0);
         // 取最新公会信息
         const t = parseFloat(row['认证时间'])||0;
         const hasGuild = row['公会长UID'] &&
@@ -634,6 +641,30 @@ function calculate() {
         '总流水': flowSumMap[String(row['主播ID']||'').trim()] || 0
       }));
 
+      // 判断哪些主播需要流水合并（上月末7天入驻 且 上月流水不满足最低档位）
+      // 遍历当月所有主播，用当月首次入会时间（UTC+3）判断是否在上月末7天内
+      // 上月流水取 lastCoinMap[id]，没有上月记录则为0
+      if (last7StartY !== null) {
+        Object.entries(latestMap).forEach(([id, curRow]) => {
+          const joinRaw = curRow['首次入会时间'];
+          if (!joinRaw) return;
+          const joinDtUTC8 = serialToDate(joinRaw);
+          if (!joinDtUTC8) return;
+          // UTC+8 减5h 转UTC+3，getUTC*取年月日
+          const utc3Date = new Date(joinDtUTC8.getTime() - 5*3600*1000);
+          const jY = utc3Date.getUTCFullYear(), jM = utc3Date.getUTCMonth(), jD = utc3Date.getUTCDate();
+          const inLast7 = (jY > last7StartY || (jY === last7StartY && jM > last7StartM) || (jY === last7StartY && jM === last7StartM && jD >= last7StartD)) &&
+                          (jY < last7EndY   || (jY === last7EndY   && jM < last7EndM)   || (jY === last7EndY   && jM === last7EndM   && jD <= last7EndD));
+          if (inLast7) {
+            const lastCoins = lastCoinMap[id] || 0;
+            const lvl = getLevel(lastCoins, levels);
+            if (lvl === '不达标') {
+              lastMergeSet.add(id);
+            }
+          }
+        });
+      }
+
       // 推算当月/上月月份标签（从所属周期字段）
       const curPeriodRaw  = curRawRows.find(r=>r['所属周期'])?.['所属周期'];
       const curPeriodDt   = serialToDate(curPeriodRaw);
@@ -654,17 +685,22 @@ function calculate() {
         const leaderUid = String(row['公会长UID']||'').trim();
         const payUid    = parsePayUid(row['薪资下发方式'], id, leaderUid);
         // 当月末7天入驻判断
-        const joinRaw   = row['首次入会时间'];
-        const joinDt    = serialToDate(joinRaw);
-        const periodRaw = row['所属周期'];
-        const periodDt  = serialToDate(periodRaw);
-        let isCurLast7  = false;
-        if (joinDt && periodDt) {
-          const cy = periodDt.getFullYear(), cm = periodDt.getMonth();
+        const joinRaw    = row['首次入会时间'];
+        const joinDtUTC8 = serialToDate(joinRaw);
+        const periodRaw  = row['所属周期'];
+        const periodDt   = serialToDate(periodRaw);
+        let isCurLast7   = false;
+        if (joinDtUTC8 && periodDt) {
+          // 首次入会时间 UTC+8 → UTC+3（减5h），再+3h取UTC年月日 = UTC+3年月日
+          const joinUTC3Date = new Date(joinDtUTC8.getTime() - 2*3600*1000);
+          const jY = joinUTC3Date.getUTCFullYear(), jM = joinUTC3Date.getUTCMonth(), jD = joinUTC3Date.getUTCDate();
+          // 所属周期是当月1号0点的serial，直接取UTC年月即为当月
+          const cy = periodDt.getUTCFullYear(), cm = periodDt.getUTCMonth();
           const lastDayOfCurMonth = new Date(cy, cm+1, 0).getDate();
-          const cur7Start = new Date(cy, cm, lastDayOfCurMonth - 6);
-          const cur7End   = new Date(cy, cm+1, 0, 23, 59, 59);
-          if (joinDt >= cur7Start && joinDt <= cur7End) isCurLast7 = true;
+          const c7SD = lastDayOfCurMonth - 6, c7ED = lastDayOfCurMonth;
+          const jInt = jY*10000+jM*100+jD;
+          isCurLast7 = jInt >= (cy*10000+cm*100+c7SD) && jInt <= (cy*10000+cm*100+c7ED);
+          // isCurLast7 已由上方 jInt 整数比较赋值，此行废弃
         }
 
         // 上月末7天入驻需要流水合并的主播：当月流水 + 上月流水
@@ -676,10 +712,16 @@ function calculate() {
           mergedLastCoins = lastCoinMap[id] ?? 0; // 保持上月流水供超档计算用
         }
 
-        const sal = calcSalary(row, mergedLastCoins, levels, rankMap, isCurLast7, lastMergeSet.has(id) ? (lastCoinMap[id]||0) : 0);
+        // 用聚合后的语音房有效天覆盖row里的值，确保薪资计算使用正确值
+        const rowWithSum = {...row, '语音房有效天': liveDaysMap[id]||0};
+        const sal = calcSalary(rowWithSum, mergedLastCoins, levels, rankMap, isCurLast7, lastMergeSet.has(id) ? (lastCoinMap[id]||0) : 0);
         // 记录原始当月/上月流水（用于导出显示）
-        sal._curFlow  = flowSumMap[id] || 0;           // 纯当月流水
-        sal._lastFlow = lastCoinMap[id] || 0;          // 纯上月流水
+        sal._curFlow      = flowSumMap[id] || 0;           // 纯当月流水
+        sal._lastFlow     = lastMergeSet.has(id) ? (lastCoinMap[id] || 0) : 0; // 上月末7天不达档主播显示上月流水，其他为0
+        sal._totalCoins   = (flowSumMap[id]||0) + (lastMergeSet.has(id) ? (lastCoinMap[id]||0) : 0); // 定档用的金币数（当月+上月末7天合并）
+        sal._liveDays     = liveDaysMap[id] || 0;  // 语音房有效天（聚合sum）
+        sal._joinDate     = row['首次入会时间'];               // 首次入会时间
+        sal._lastMergeFlow = lastMergeSet.has(id) ? (lastCoinMap[id] ?? null) : null; // 上月末7天不达档流水（无上月记录则为null显示空）
         return { id, nickname, payUid, guildId, guildName, guildLeader:leaderUid, ...sal };
       });
 
@@ -982,6 +1024,7 @@ function exportWorkbook(rows, _rawKeys, filename) {
     '主播薪资总计($)','公会薪资总计($)',
     '超档金币','超档金币兑钻',
     `${curLbl}流水`, `${lastLbl}流水`, '总流水(当月+上月)',
+    '语音房有效天', '首次入会时间(UTC+8)', '首次入会时间(UTC+3)', `${lastLbl}末7天流水(不达档)`,
     '达标情况','激励说明'
   ];
   const s1Data = rows.map(r => [
@@ -991,11 +1034,42 @@ function exportWorkbook(rows, _rawKeys, filename) {
     r.aBonus||0, r.gBonus||0,
     r.aTotal||0, r.gTotal||0,
     r.overCoins||0, r.overDiamond||0,
-    r._curFlow||0, r._lastFlow||0, (r._curFlow||0)+(r._lastFlow||0),
+    r._curFlow||0, r._lastFlow||0, r._totalCoins||0,
+    r._liveDays||0,
+    r._joinDate != null ? datetimeToSerial(r._joinDate) : '',
+    r._joinDate != null ? datetimeToSerial(new Date(serialToMs(r._joinDate) - 5*3600*1000)) : '',
+    (r._lastMergeFlow != null && r._lastMergeFlow > 0) ? r._lastMergeFlow : '',
     r.attend||'', r.bonusNote||''
   ]);
   const ws1 = XLSX.utils.aoa_to_sheet([s1Hdrs, ...s1Data]);
-  ws1['!cols'] = [14,16,14,10,20,14,10,10,16,16,16,16,16,16,12,12,14,14,16,32,20].map(w=>({wch:w}));
+  ws1['!cols'] = [14,16,14,10,20,14,10,10,16,16,16,16,16,16,12,12,14,14,16,12,18,18,14,32,20].map(w=>({wch:w}));
+  // 首次入会时间列（s1Hdrs里的index）设置日期格式
+  const joinDateCols = [s1Hdrs.indexOf('首次入会时间(UTC+8)'), s1Hdrs.indexOf('首次入会时间(UTC+3)')];
+  for (const joinDateColIdx of joinDateCols) {
+    if (joinDateColIdx < 0) continue;
+    for (let ri = 1; ri <= s1Data.length; ri++) {
+      const addr = XLSX.utils.encode_cell({r:ri, c:joinDateColIdx});
+      const cell = ws1[addr];
+      if (cell && cell.v !== '' && cell.v !== null) {
+        cell.t = 'n';
+        cell.z = 'm/d/yy h:mm';
+        delete cell.w;
+      }
+    }
+  }
+  // 末7天流水列强制为数字类型，避免被识别为日期
+  const mergeFlowColIdx = s1Hdrs.findIndex(h => h.includes('末7天流水'));
+  if (mergeFlowColIdx >= 0) {
+    for (let ri = 1; ri <= s1Data.length; ri++) {
+      const addr = XLSX.utils.encode_cell({r:ri, c:mergeFlowColIdx});
+      const cell = ws1[addr];
+      if (cell && cell.v !== '' && cell.v !== null) {
+        cell.t = 'n';
+        delete cell.z;
+        delete cell.w;
+      }
+    }
+  }
   XLSX.utils.book_append_sheet(wb, ws1, '薪资明细');
 
   // 公会汇总
