@@ -497,8 +497,7 @@ function calcSalary(row, lastCoins, levels, rankMap, isCurLast7=false, lastMerge
   let isNewThisMonth = false;
   if (periodDt2 && joinDtUTC82) {
     const pY = periodDt2.getUTCFullYear(), pM = periodDt2.getUTCMonth();
-    const joinUTC3 = new Date(joinDtUTC82.getTime() - 5*3600*1000);
-    const jY2 = joinUTC3.getUTCFullYear(), jM2 = joinUTC3.getUTCMonth();
+    const jY2 = joinDtUTC82.getUTCFullYear(), jM2 = joinDtUTC82.getUTCMonth();
     isNewThisMonth = (pY === jY2 && pM === jM2);
   }
 
@@ -549,8 +548,8 @@ function calcSalary(row, lastCoins, levels, rankMap, isCurLast7=false, lastMerge
 //  主计算
 // ═══════════════════════════════════════════════
 function calculate() {
-  if (!curData)  return showMsg('请先上传当月数据', 'error');
-  if (!lastData) return showMsg('请先上传上月数据', 'error');
+  if (!curData) return showMsg('请先上传当月数据', 'error');
+  if (!lastData) showMsg('未上传上月数据，将按纯当月数据计算（上月流水视为0）', 'info');
   const btn = document.getElementById('calc-btn');
   document.getElementById('spinner').style.display='block';
   document.getElementById('calc-label').textContent='计算中...';
@@ -577,9 +576,7 @@ function calculate() {
       if (curPeriodForLast7) {
         const cp = serialToDate(curPeriodForLast7);
         if (cp) {
-          // 所属周期是UTC+8存储，减5h转UTC+3取年月
-          const cpUTC3 = new Date(cp.getTime() - 5*3600*1000);
-          const curM = cpUTC3.getUTCMonth(), curY = cpUTC3.getUTCFullYear();
+          const curM = cp.getUTCMonth(), curY = cp.getUTCFullYear();
           const lm = curM === 0 ? 11 : curM - 1;
           const ly = curM === 0 ? curY - 1 : curY;
           const lastDayOfLastMonth = new Date(ly, lm+1, 0).getDate();
@@ -587,7 +584,7 @@ function calculate() {
           last7EndY   = ly; last7EndM   = lm; last7EndD   = lastDayOfLastMonth;
         }
       }
-      if (lastData.length > 0) {
+      if (lastData && lastData.length > 0) {
 
         // 聚合上月流水
         lastData.forEach(r => {
@@ -650,8 +647,7 @@ function calculate() {
           if (!joinRaw) return;
           const joinDtUTC8 = serialToDate(joinRaw);
           if (!joinDtUTC8) return;
-          // UTC+8 减5h 转UTC+3，getUTC*取年月日
-          const utc3Date = new Date(joinDtUTC8.getTime() - 5*3600*1000);
+          const utc3Date = joinDtUTC8;
           const jY = utc3Date.getUTCFullYear(), jM = utc3Date.getUTCMonth(), jD = utc3Date.getUTCDate();
           const inLast7 = (jY > last7StartY || (jY === last7StartY && jM > last7StartM) || (jY === last7StartY && jM === last7StartM && jD >= last7StartD)) &&
                           (jY < last7EndY   || (jY === last7EndY   && jM < last7EndM)   || (jY === last7EndY   && jM === last7EndM   && jD <= last7EndD));
@@ -1024,7 +1020,7 @@ function exportWorkbook(rows, _rawKeys, filename) {
     '主播薪资总计($)','公会薪资总计($)',
     '超档金币','超档金币兑钻',
     `${curLbl}流水`, `${lastLbl}流水`, '总流水(当月+上月)',
-    '语音房有效天', '首次入会时间(UTC+8)', '首次入会时间(UTC+3)', `${lastLbl}末7天流水(不达档)`,
+    '语音房有效天', '首次入会时间(UTC+3)', `${lastLbl}末7天流水(不达档)`,
     '达标情况','激励说明'
   ];
   const s1Data = rows.map(r => [
@@ -1037,14 +1033,13 @@ function exportWorkbook(rows, _rawKeys, filename) {
     r._curFlow||0, r._lastFlow||0, r._totalCoins||0,
     r._liveDays||0,
     r._joinDate != null ? datetimeToSerial(r._joinDate) : '',
-    r._joinDate != null ? datetimeToSerial(new Date(serialToMs(r._joinDate) - 5*3600*1000)) : '',
     (r._lastMergeFlow != null && r._lastMergeFlow > 0) ? r._lastMergeFlow : '',
     r.attend||'', r.bonusNote||''
   ]);
   const ws1 = XLSX.utils.aoa_to_sheet([s1Hdrs, ...s1Data]);
-  ws1['!cols'] = [14,16,14,10,20,14,10,10,16,16,16,16,16,16,12,12,14,14,16,12,18,18,14,32,20].map(w=>({wch:w}));
+  ws1['!cols'] = [14,16,14,10,20,14,10,10,16,16,16,16,16,16,12,12,14,14,16,12,18,14,32,20].map(w=>({wch:w}));
   // 首次入会时间列（s1Hdrs里的index）设置日期格式
-  const joinDateCols = [s1Hdrs.indexOf('首次入会时间(UTC+8)'), s1Hdrs.indexOf('首次入会时间(UTC+3)')];
+  const joinDateCols = [s1Hdrs.indexOf('首次入会时间(UTC+3)')];
   for (const joinDateColIdx of joinDateCols) {
     if (joinDateColIdx < 0) continue;
     for (let ri = 1; ri <= s1Data.length; ri++) {
@@ -1119,6 +1114,75 @@ function exportWorkbook(rows, _rawKeys, filename) {
   const ws5 = XLSX.utils.aoa_to_sheet([s5Hdrs, ...s5Data]);
   ws5['!cols'] = [16,22,18].map(w=>({wch:w}));
   XLSX.utils.book_append_sheet(wb, ws5, '公会长薪资下发明细');
+
+  // ── Sheet8：公会维度-主播薪资下发个人比例 ──
+
+  // 当月：按公会聚合薪资和流水
+  const guildPayMap = {};
+  rows.forEach(r => {
+    if (!r.guildId) return;
+    const key = String(r.guildId);
+    if (!guildPayMap[key]) guildPayMap[key] = {
+      guildId: key, guildName: r.guildName, guildLeader: r.guildLeader,
+      anchorToSelf: 0, anchorTotal: 0, guildTotal: 0,
+      flowToSelf: 0, flowTotal: 0,
+    };
+    guildPayMap[key].anchorTotal += r.aTotal;
+    guildPayMap[key].guildTotal  += r.gTotal;
+    guildPayMap[key].flowTotal   += r._curFlow||0;
+    if (String(r.payUid||'').trim() === String(r.id||'').trim()) {
+      guildPayMap[key].anchorToSelf += r.aTotal;
+      guildPayMap[key].flowToSelf   += r._curFlow||0;
+    }
+  });
+
+  // 上月：按公会聚合流水（需要上月数据）
+  const lastGuildFlowMap = {};      // 公会ID → {flowToSelf, flowTotal}
+  if (lastData && lastData.length > 0) {
+    // 先用当月数据建立主播ID→公会ID映射
+    const anchorGuildMap = {};
+    rows.forEach(r => { if (r.id && r.guildId) anchorGuildMap[r.id] = String(r.guildId); });
+    // 遍历上月数据聚合
+    lastData.forEach(row => {
+      const id      = String(row['主播ID']||'').trim();
+      const guildId = anchorGuildMap[id];
+      if (!guildId) return;
+      const flow    = parseFloat(row['总流水'])||0;
+      const method  = String(row['薪资下发方式']||'').trim();
+      const isSelf  = method === '下发给主播本人' || method === '-' || !method;
+      if (!lastGuildFlowMap[guildId]) lastGuildFlowMap[guildId] = {flowToSelf:0, flowTotal:0};
+      lastGuildFlowMap[guildId].flowTotal += flow;
+      if (isSelf) lastGuildFlowMap[guildId].flowToSelf += flow;
+    });
+  }
+
+  const s8Hdrs = ['公会ID','公会名称','公会长UID',
+    `本月下发给主播个人薪资($)`, `本月下发主播个人比例`,
+    `本月主播总薪资($)`, `本月公会总薪资($)`,
+    `本月下发给主播个人金币流水比例`,
+    `上月下发给主播个人金币流水比例`];
+
+  const s8Data = Object.values(guildPayMap)
+    .sort((a,b) => b.anchorTotal - a.anchorTotal)
+    .map(g => {
+      const salRatio      = g.anchorTotal > 0 ? (g.anchorToSelf / g.anchorTotal) : 0;
+      const curFlowRatio  = g.flowTotal   > 0 ? (g.flowToSelf   / g.flowTotal)   : 0;
+      const lastFlow      = lastGuildFlowMap[g.guildId] || {flowToSelf:0, flowTotal:0};
+      const lastFlowRatio = lastFlow.flowTotal > 0 ? (lastFlow.flowToSelf / lastFlow.flowTotal) : 0;
+      return [
+        g.guildId, g.guildName, g.guildLeader,
+        Math.round(g.anchorToSelf*100)/100,
+        (salRatio*100).toFixed(2)+'%',
+        Math.round(g.anchorTotal*100)/100,
+        Math.round(g.guildTotal*100)/100,
+        (curFlowRatio*100).toFixed(2)+'%',
+        lastData && lastData.length > 0 ? (lastFlowRatio*100).toFixed(2)+'%' : '',
+      ];
+    });
+
+  const ws8 = XLSX.utils.aoa_to_sheet([s8Hdrs, ...s8Data]);
+  ws8['!cols'] = [14,22,14,20,16,16,16,20,20].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb, ws8, '公会主播薪资下发比例');
 
   // ── Sheet7（原Sheet6挪后）先插入：金币扣减 ──
   const s7Hdrs = ['主播UID', '总流水'];
